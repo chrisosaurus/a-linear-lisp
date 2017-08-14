@@ -242,11 +242,17 @@ eitherToMaybe :: Either String ([String], [String]) -> Maybe String
 eitherToMaybe (Left str) = Just str
 eitherToMaybe _ = Nothing
 
+checkVarsResult :: Either String ([String], [String]) -> Maybe String
+checkVarsResult (Left err) = Just err
+checkVarsResult (Right ([],_)) = Nothing
+checkVarsResult (Right (unused,_)) = Just $ "Error: unused variables '" ++ show unused ++ "'"
+
 -- check that every variable:
 --  - is used exactly once
 --  - is defined exactly once before usage
 checkVars :: SExpr -> Maybe String
-checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
+-- TODO FIMXE we need to verify that every leaf uses all vars
+checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
     where checkVarsInner :: SExpr -> ([String],[String]) -> Either String ([String], [String])
           checkVarsInner (SSymbol name) vars = use vars name
           checkVarsInner (SString _) vars = Right vars
@@ -255,7 +261,13 @@ checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
           checkVarsInner (SLet name _ body) vars = case (declare vars name) of
                                                     (Left err) -> Left err
                                                     (Right new_vars) -> checkVarsInner body new_vars
- --         checkVarsInner (SIf cond body_then body_else) _ _ = Nothing
+          checkVarsInner (SIf cond body_then body_else) vars = case (use vars cond) of
+                                                                (Left err) -> Left err
+                                                                (Right vars1) -> case (checkVarsInner body_then vars1) of
+                                                                                (Left err) -> Left err
+                                                                                -- we need to verify that every leaf uses all vars
+                                                                                (Right ([], _)) -> checkVarsInner body_else vars1
+                                                                                (Right (unused, _)) -> Right (unused, [])
           checkVarsInner (SFdecl _ params body) _ | containsRepeated params = Left $ "Error: parameter list is not unique '" ++ (show params) ++ "'"
           checkVarsInner (SFdecl _ params body) vars = case (foldMy declare (Right vars) params) of
                                                         (Left err) -> Left err
