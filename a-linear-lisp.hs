@@ -207,9 +207,9 @@ fetch EmptyScope str = error $ "Failed to find string: " ++ str
 fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
-truthy :: [String] -> Bool
-truthy ["SString \"\""] = False
-truthy ["SNumber 0"] = False
+truthy :: [SExpr] -> Bool
+truthy [SString ""] = False
+truthy [SNumber 0] = False
 truthy _  = True
 
 -- create the new scope for an fcall
@@ -217,9 +217,11 @@ fcallScope :: Scope -> [String] -> [SExpr] -> Scope
 fcallScope scope [] [] = scope
 fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
 
-eval_in_scope :: Scope -> [SExpr] -> [String]
+-- primop :: Scope -> String -> [SExpr] -> SExpr
+
+eval_in_scope :: Scope -> [SExpr] -> [SExpr]
 eval_in_scope    _ [] = []
-eval_in_scope    scope ((SSymbol name):rest) = (show (fetch scope name)) : eval_in_scope scope rest
+eval_in_scope    scope ((SSymbol name):rest) =  (fetch scope name) : eval_in_scope scope rest
 eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
     where let_scope = insert scope name val
 eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
@@ -228,27 +230,29 @@ eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scop
 eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (eval_in_scope scope [cond]))
                                                                then (eval_in_scope scope [body_then])
                                                                else (eval_in_scope scope [body_else])
+--eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
+--    where primops = [ "+", "==", "<", ">", "concat" ]
 eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
     where (SFdecl _ params fbody) = fetch scope name
           new_scope = fcallScope scope params args
-eval_in_scope    scope (val:rest) = (show val) : eval_in_scope scope rest
+eval_in_scope    scope (val:rest) = val : eval_in_scope scope rest
 
-eval :: Program -> [String]
+eval :: Program -> [SExpr]
 eval    (Program prog) = eval_in_scope EmptyScope prog
 
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
-                        ((parse (lexer "(let (a 2) a)")),                  ["SNumber 2"]),
-                        ((parse (lexer "(let (a c) a)")),                  ["SSymbol \"c\""]),
-                        ((parse (lexer "(let (a \"Hello\") a)")),          ["SString \"Hello\""]),
-                        ((parse (lexer "(let (a 14) (let (b 15) a))")),    ["SNumber 14"]),
-                        ((parse (lexer "(if 1       \"pass\" \"fail\")")), ["SString \"pass\""]),
-                        ((parse (lexer "(if \"\"    \"fail\" \"pass\")")), ["SString \"pass\""]),
-                        ((parse (lexer "(if \"heh\" \"pass\" \"fail\")")), ["SString \"pass\""]),
+                        ((parse (lexer "(let (a 2) a)")),                  [SNumber 2]),
+                        ((parse (lexer "(let (a c) a)")),                  [SSymbol "c"]),
+                        ((parse (lexer "(let (a \"Hello\") a)")),          [SString "Hello"]),
+                        ((parse (lexer "(let (a 14) (let (b 15) a))")),    [SNumber 14]),
+                        ((parse (lexer "(if 1       \"pass\" \"fail\")")), [SString "pass"]),
+                        ((parse (lexer "(if \"\"    \"fail\" \"pass\")")), [SString "pass"]),
+                        ((parse (lexer "(if \"heh\" \"pass\" \"fail\")")), [SString "pass"]),
                         ((parse (lexer "(fn (car a b) a)")),               []),
-                        ((parse (lexer "(fn (car a b) a)(car 1 2)")),      ["SNumber 1"]),
-                        ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(car 1 2)(cdr 3 4)")), ["SNumber 1", "SNumber 4"]),
+                        ((parse (lexer "(fn (car a b) a)(car 1 2)")),      [SNumber 1]),
+                        ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(car 1 2)(cdr 3 4)")), [SNumber 1, SNumber 4]),
                         ((parse (lexer "")), [])
                       ]
 
