@@ -17,7 +17,7 @@ import Data.List (delete)
 --      | LetExpr
 -- Fcall = Symbol Symbol...
 -- Fdecl = "fn" (Symbol Symbol...) Expr
--- IfExpr = "if" Expr Expr Expr
+-- IfExpr = "if" Symbol Expr Expr
 -- LetExpr = "let" (Symbol Expr) Expr
 
 -- general testing function taking
@@ -123,7 +123,7 @@ data SExpr = SSymbol String
            | SString String
            | SNumber Int
            | SLet String SExpr SExpr
-           | SIf SExpr SExpr SExpr
+           | SIf String SExpr SExpr
            | SFdecl String [String] SExpr
            | SFcall String [String]
     deriving (Show, Eq)
@@ -177,10 +177,9 @@ parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRpar
 parseSExpr (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
     where (params, rest1) = parseParams rest
           (body,   (TRparen:rest2)) = parseSExpr rest1
-parseSExpr (TLparen : (TSymbol "if")  : rest) = ((SIf cond body_then body_else), rest3)
-    where (cond,      rest1) = parseSExpr rest
-          (body_then, rest2) = parseSExpr rest1
-          (body_else, (TRparen:rest3)) = parseSExpr rest2
+parseSExpr (TLparen : (TSymbol "if")  : (TSymbol cond): rest) = ((SIf cond body_then body_else), rest2)
+    where (body_then, rest1) = parseSExpr rest
+          (body_else, (TRparen:rest2)) = parseSExpr rest1
 parseSExpr (TLparen : (TSymbol name)  : rest) = ((SFcall name args), rrest)
     where (args, rrest) = parseParams rest
 parseSExpr (val : rest) = ((parseValue val), rest)
@@ -201,7 +200,7 @@ parse_test = myTest "parse" parse testcases
                         ([(TString "hello world")],
                          (Program [(SString "hello world")])),
                         ((lexer "(if a b c)"),
-                         (Program [(SIf (SSymbol "a") (SSymbol "b") (SSymbol "c"))])),
+                         (Program [(SIf "a" (SSymbol "b") (SSymbol "c"))])),
                         ((lexer "(let (a b) c)"),
                          (Program [(SLet "a" (SSymbol "b") (SSymbol "c"))])),
                         ((lexer "(fn (foo a b) (+ a b))"),
@@ -283,9 +282,9 @@ fetch EmptyScope str = error $ "Failed to find string: " ++ str
 fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
-truthy :: [SExpr] -> Bool
-truthy [SString ""] = False
-truthy [SNumber 0] = False
+truthy :: SExpr -> Bool
+truthy (SString "") = False
+truthy (SNumber 0) = False
 truthy _  = True
 
 -- create the new scope for an fcall
@@ -324,7 +323,7 @@ eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [b
 eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
     where new_scope = insert scope name val
             where val = (SFdecl name params body)
-eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (eval_in_scope scope [cond]))
+eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (fetch scope cond))
                                                                then (eval_in_scope scope [body_then])
                                                                else (eval_in_scope scope [body_else])
 eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
