@@ -126,6 +126,8 @@ data SExpr = SSymbol String
            | SIf String SExpr SExpr
            | SFdecl String [String] SExpr
            | SFcall String [String]
+           -- drop var 'String' and continue eval in SExpr
+           | SDrop String SExpr
     deriving (Show, Eq)
 
 data Program = Program [SExpr]
@@ -171,6 +173,8 @@ parseParams tokens = parseParamsInner [] tokens
 parseSExpr :: [Token] -> (SExpr, [Token])
 parseSExpr ((TSymbol contents) : rest) = ((SSymbol contents), rest)
 parseSExpr ((TNumber contents) : rest) = ((SNumber contents), rest)
+parseSExpr (TLparen : (TSymbol "drop") : (TSymbol name) : rest) = ((SDrop name body), rrest)
+    where (body, (TRparen:rrest)) = parseSExpr rest
 parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRparen : rest) = ((SLet name vvalue body), rrest)
     where (body, (TRparen:rrest)) = parseSExpr rest
           vvalue = parseValue value
@@ -207,6 +211,8 @@ parse_test = myTest "parse" parse testcases
                          (Program [(SFdecl "foo" ["a", "b"] (SFcall "+" ["a", "b"]))])),
                         ((lexer "(let (a \"Hello\") (let (b \" world\") (concat a b)))"),
                          (Program [(SLet "a" (SString "Hello") (SLet "b" (SString " world") (SFcall "concat" ["a", "b"])))])),
+                        ((lexer "(let (a 3)(let (b 4)(drop a b)))",
+                         (Program [(SLet "a" (SNumber 3) (SLet "b" (SNumber 4) (SDrop "a" (SSymbol "b"))))]))),
                         ([],
                          (Program []))
                       ]
@@ -330,6 +336,9 @@ primop _ name _ = error $ "Unknown primop: " ++ show name
 eval_in_scope :: Scope -> [SExpr] -> [SExpr]
 eval_in_scope    _ [] = []
 eval_in_scope    scope ((SSymbol name):rest) =  (fetch scope name) : eval_in_scope scope rest
+-- TODO FIXME drop should delete name from scope
+-- here we are relying on 'check' preventing reuse, which is less clean
+eval_in_scope    scope ((SDrop name body):rest) = eval_in_scope scope [body]
 eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
     where let_scope = insert scope name val
 eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
@@ -366,6 +375,7 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val \"heh\")(if val pass fail))))")),                [SString "pass"]),
                         ((parse (lexer "(fn (car a b) a)")),                                                                               []),
                         ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), [SNumber 1, SNumber 4]),
+                        ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               [SNumber 4]),
                         ((parse (lexer "")), [])
                       ]
 
