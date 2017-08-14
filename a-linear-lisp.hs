@@ -251,7 +251,7 @@ checkVarsResult (Right (unused,_)) = Just $ "Error: unused variables '" ++ show 
 --  - is used exactly once
 --  - is defined exactly once before usage
 checkVars :: SExpr -> Maybe String
--- TODO FIMXE we need to verify that every leaf uses all vars
+-- we need to verify that every leaf uses all vars
 checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
     where checkVarsInner :: SExpr -> ([String],[String]) -> Either String ([String], [String])
           checkVarsInner (SSymbol name) vars = use vars name
