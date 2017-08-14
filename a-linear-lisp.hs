@@ -203,8 +203,13 @@ fetch EmptyScope str = error $ "Failed to find string: " ++ str
 fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
+eval_in_scope :: Scope -> [SExpr] -> [String]
+eval_in_scope    _ [] = []
+eval_in_scope    scope ((SSymbol name):rest) = (show (fetch scope name)) : eval_in_scope scope rest
+-- TODO FIXME fdecl modifies the scope
+
 eval :: Program -> [String]
-eval    (Program []) = []
+eval    (Program prog) = eval_in_scope EmptyScope prog
 
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
