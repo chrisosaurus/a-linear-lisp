@@ -1,8 +1,24 @@
 module Main where
 
+-- a minimal algebraic-normal-form lisp
+
 import Data.Char (isDigit, digitToInt)
 import Control.Monad (foldM)
 import Data.List (delete)
+
+-- abstract grammar
+-- Program = [Expr]
+-- Expr = Symbol
+--      | String
+--      | Number
+--      | Fcall
+--      | Fdecl
+--      | IfExpr
+--      | LetExpr
+-- Fcall = Symbol Symbol...
+-- Fdecl = "fn" (Symbol Symbol...) Expr
+-- IfExpr = "if" Expr Expr Expr
+-- LetExpr = "let" (Symbol Expr) Expr
 
 -- general testing function taking
 -- a name to print
