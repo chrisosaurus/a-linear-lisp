@@ -267,8 +267,8 @@ checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
           checkVarsInner (SFcall _ args) vars = foldMy use (Right vars) args
 
 -- check static properties
---check :: Program -> Maybe String
---check p = checkVars p
+check :: Program -> [String]
+check (Program sexprs) = map show $ map checkVars sexprs
 
 data Binding = Binding String SExpr
 
