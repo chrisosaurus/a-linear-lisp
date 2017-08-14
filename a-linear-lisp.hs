@@ -264,6 +264,9 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
           checkVarsInner (SString _) vars = Right vars
           checkVarsInner (SNumber _) vars = Right vars
 
+          checkVarsInner (SDrop name body) vars = case (use vars name) of
+                                                    (Left err) -> Left err
+                                                    (Right new_vars) -> checkVarsInner body new_vars
           checkVarsInner (SLet name _ body) vars = case (declare vars name) of
                                                     (Left err) -> Left err
                                                     (Right new_vars) -> checkVarsInner body new_vars
