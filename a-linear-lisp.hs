@@ -68,7 +68,7 @@ lexer    (')' :rest) = TRparen : lexer rest
 lexer    ('"' :rest) = (TString contents) : lexer rrest
     where (contents, rrest) = consumeString rest
              where consumeString :: String -> (String, String)
-                   consumeString str = consumeStringInner str ""
+                   consumeString str = consumeStringInner "" str
                         where consumeStringInner :: String -> String -> (String, String)
                               consumeStringInner left ('"':right) = (left, right)
                               consumeStringInner left ""          = (left, "")
@@ -96,6 +96,8 @@ lexer_test = myTest "lexer" lexer testcases
                         ("(hello + 11 1)", [TLparen, (TSymbol "hello"), (TSymbol "+"), (TNumber 11), (TNumber 1), TRparen]),
                         ("a", [(TSymbol "a")]),
                         ("(if a b c)", [TLparen, (TSymbol "if"), (TSymbol "a"), (TSymbol "b"), (TSymbol "c"), TRparen]),
+                        ("(\"Hello\")", [TLparen, (TString "Hello"), TRparen]),
+                        ("(\"Hello world\")", [TLparen, (TString "Hello world"), TRparen]),
                         ("", [])
                       ]
 
@@ -186,6 +188,8 @@ parse_test = myTest "parse" parse testcases
                          (Program [(SLet "a" (SSymbol "b") (SSymbol "c"))])),
                         ((lexer "(fn (foo a b) (+ a b))"),
                          (Program [(SFdecl "foo" ["a", "b"] (SFcall "+" [(SSymbol "a"), (SSymbol "b")]))])),
+                        ((lexer "(concat \"Hello world\")"),
+                         (Program [(SFcall "concat" [(SString "Hello world")])])),
                         ([],
                          (Program []))
                       ]
@@ -203,10 +207,31 @@ fetch EmptyScope str = error $ "Failed to find string: " ++ str
 fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
+truthy :: [String] -> Bool
+truthy [""] = False
+truthy _  = True
+
+-- create the new scope for an fcall
+fcallScope :: Scope -> [String] -> [SExpr] -> Scope
+fcallScope scope [] [] = scope
+fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
+
 eval_in_scope :: Scope -> [SExpr] -> [String]
 eval_in_scope    _ [] = []
 eval_in_scope    scope ((SSymbol name):rest) = (show (fetch scope name)) : eval_in_scope scope rest
--- TODO FIXME fdecl modifies the scope
+eval_in_scope    scope ((SString contents):rest) = (show contents) : eval_in_scope scope rest
+eval_in_scope    scope ((SNumber contents):rest) = (show contents) : eval_in_scope scope rest
+eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
+    where let_scope = insert scope name val
+eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
+    where new_scope = insert scope name val
+            where val = (SFdecl name params body)
+eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (eval_in_scope scope [cond]))
+                                                               then (eval_in_scope scope [body_then])
+                                                               else (eval_in_scope scope [body_else])
+eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
+    where (SFdecl name params fbody) = fetch scope name
+          new_scope = fcallScope scope params args
 
 eval :: Program -> [String]
 eval    (Program prog) = eval_in_scope EmptyScope prog
@@ -214,7 +239,10 @@ eval    (Program prog) = eval_in_scope EmptyScope prog
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
-                        ((Program []), [])
+                        ((parse (lexer "(let (a 2) a)")), ["SNumber 2"]),
+                        ((parse (lexer "(let (a c) a)")), ["SSymbol \"c\""]),
+                        ((parse (lexer "(let (a \"Hello\") a)")), ["SString \"Hello\""]),
+                        ((parse (lexer "(let (a 14) (let (b 15) a))")), ["SNumber 14"])
                       ]
 
 main :: IO ()
