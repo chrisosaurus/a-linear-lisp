@@ -257,7 +257,10 @@ checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
                                                     (Left err) -> Left err
                                                     (Right new_vars) -> checkVarsInner body new_vars
  --         checkVarsInner (SIf cond body_then body_else) _ _ = Nothing
---          checkVarsInner (SFdecl _ params body) (declared,used) =
+          checkVarsInner (SFdecl _ params body) _ | containsRepeated params = Left $ "Error: parameter list is not unique '" ++ (show params) ++ "'"
+          checkVarsInner (SFdecl _ params body) vars = case (foldMy declare (Right vars) params) of
+                                                        (Left err) -> Left err
+                                                        (Right new_vars) -> checkVarsInner body new_vars
           -- check args are not repeated (used more than once in this call)
           checkVarsInner (SFcall _ args) _ | containsRepeated args = Left $ "Error: argument list is not unique '" ++ (show args) ++ "'"
           -- check that every arg is defined and previous unused
