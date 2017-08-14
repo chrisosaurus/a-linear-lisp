@@ -220,18 +220,24 @@ containsRepeated list = containsRepeatedInner list []
                                               then True
                                               else containsRepeatedInner xs (x:list)
 
+declare :: ([String], [String]) -> String -> Either String ([String], [String])
+declare (declared, used) name | name `elem` declared = Left $ "Error: variable redeclared overwrites unused variable '" ++ name ++ "'"
+declare (declared, used) name = Right (l,r)
+    where l = (name:declared)
+          r = delete name used
+
 use :: ([String], [String]) -> String -> Either String ([String], [String])
 use (declared, _) name | not (name `elem` declared) = Left $ "Error: variable '" ++ name ++ "' not declared"
 use (_, used) name | name `elem` used = Left $ "Error: variable '" ++ name ++ "' re-used"
 use (declared, used) name | name `elem` used = Right (new_declared,(name:used))
     where new_declared = Data.List.delete name declared
 
-foldUse :: Either String ([String], [String]) -> [String] -> Either String ([String], [String])
-foldUse either [] = either
-foldUse (Left err) _ = Left err
-foldUse (Right vars) (x:xs) = case (use vars x) of
+foldMy :: (([String], [String]) -> String -> Either String ([String], [String])) -> Either String ([String], [String]) -> [String] -> Either String ([String], [String])
+foldMy _ either [] = either
+foldMy _ (Left err) _ = Left err
+foldMy f (Right vars) (x:xs) = case (use vars x) of
                                    (Left err)    -> Left err
-                                   (Right nvars) -> foldUse (Right nvars) xs
+                                   (Right nvars) -> foldMy f (Right nvars) xs
 
 eitherToMaybe :: Either String ([String], [String]) -> Maybe String
 eitherToMaybe (Left str) = Just str
@@ -247,17 +253,15 @@ checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
           checkVarsInner (SString _) vars = Right vars
           checkVarsInner (SNumber _) vars = Right vars
 
-          checkVarsInner (SLet name _ body) (declared,used) = checkVarsInner body ((name:declared),new_used)
-            where new_used = Data.List.delete name used -- variables can shadow each other
+          checkVarsInner (SLet name _ body) vars = case (declare vars name) of
+                                                    (Left err) -> Left err
+                                                    (Right new_vars) -> checkVarsInner body new_vars
  --         checkVarsInner (SIf cond body_then body_else) _ _ = Nothing
 --          checkVarsInner (SFdecl _ params body) (declared,used) =
+          -- check args are not repeated (used more than once in this call)
           checkVarsInner (SFcall _ args) _ | containsRepeated args = Left $ "Error: argument list is not unique '" ++ (show args) ++ "'"
--- TODO FIXME incorrect
--- sfcall args are SExpr, not string
--- need to check that each is fine on it's won
--- AND that they do not overlap
--- :/
---          checkVarsInner (SFcall _ args) vars = foldUse (Right vars) args
+          -- check that every arg is defined and previous unused
+          checkVarsInner (SFcall _ args) vars = foldMy use (Right vars) args
 
 -- check static properties
 --check :: Program -> Maybe String
