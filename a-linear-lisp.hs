@@ -217,7 +217,28 @@ fcallScope :: Scope -> [String] -> [SExpr] -> Scope
 fcallScope scope [] [] = scope
 fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
 
--- primop :: Scope -> String -> [SExpr] -> SExpr
+primop :: Scope -> String -> [SExpr] -> SExpr
+primop scope "+" (left:right:[]) = SNumber (lleft + rright)
+    where [(SNumber lleft)] = eval_in_scope scope [left]
+          [(SNumber rright)] = eval_in_scope scope [right]
+primop scope "==" (left:right:[]) = if (lleft == rright) then (SNumber 1) else (SNumber 0)
+    where [(SNumber lleft)] = eval_in_scope scope [left]
+          [(SNumber rright)] = eval_in_scope scope [right]
+primop scope "<" (left:right:[]) = if (lleft < rright) then (SNumber 1) else (SNumber 0)
+    where [(SNumber lleft)] = eval_in_scope scope [left]
+          [(SNumber rright)] = eval_in_scope scope [right]
+primop scope ">" (left:right:[]) = if (lleft > rright) then (SNumber 1) else (SNumber 0)
+    where [(SNumber lleft)] = eval_in_scope scope [left]
+          [(SNumber rright)] = eval_in_scope scope [right]
+primop scope "concat" (left:right:[]) = SString (lleft ++ rright)
+    where [(SString lleft)] = eval_in_scope scope [left]
+          [(SString rright)] = eval_in_scope scope [right]
+primop _ name _ = error $ "Unknown primop: " ++ show name
+
+-- TODO FIXME make eval_single :: Scope -> SExpr -> SExpr
+-- and then have the other evals wrap
+
+-- TODO FIXME make primops n-ary
 
 eval_in_scope :: Scope -> [SExpr] -> [SExpr]
 eval_in_scope    _ [] = []
@@ -230,8 +251,8 @@ eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scop
 eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (eval_in_scope scope [cond]))
                                                                then (eval_in_scope scope [body_then])
                                                                else (eval_in_scope scope [body_else])
---eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
---    where primops = [ "+", "==", "<", ">", "concat" ]
+eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
+    where primops = [ "+", "==", "<", ">", "concat" ]
 eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
     where (SFdecl _ params fbody) = fetch scope name
           new_scope = fcallScope scope params args
@@ -243,6 +264,12 @@ eval    (Program prog) = eval_in_scope EmptyScope prog
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
+                        ((parse (lexer "(+ 1 2)")),                        [SNumber 3]),
+                        ((parse (lexer "(== 1 1)")),                       [SNumber 1]),
+                        ((parse (lexer "(== 2 3)")),                       [SNumber 0]),
+                        ((parse (lexer "(< 1 2)")),                        [SNumber 1]),
+                        ((parse (lexer "(> 1 2)")),                        [SNumber 0]),
+                        ((parse (lexer "(concat \"Hello \" \"world\")")),  [SString "Hello world"]),
                         ((parse (lexer "(let (a 2) a)")),                  [SNumber 2]),
                         ((parse (lexer "(let (a c) a)")),                  [SSymbol "c"]),
                         ((parse (lexer "(let (a \"Hello\") a)")),          [SString "Hello"]),
