@@ -49,9 +49,6 @@ stringToInt xs = stringToIntInner 0 xs
 -- (concat str1 str2)
 -- "..."
 -- [0-9]+
--- (print value)
--- (println value)
--- (println)
 
 data Token = TSymbol String
            | TLparen
@@ -127,9 +124,6 @@ data Program = Program [SExpr]
 -- (concat str1 str2)
 -- "..."
 -- [0-9]+
--- (print value)
--- (println value)
--- (println)
 
 parseValue :: Token -> SExpr
 parseValue (TString contents) = (SString contents)
@@ -196,11 +190,35 @@ parse_test = myTest "parse" parse testcases
                          (Program []))
                       ]
 
+data Binding = Binding String SExpr
+
+data Scope = EmptyScope
+           | Scope Binding Scope
+
+insert :: Scope -> String -> SExpr -> Scope
+insert scope str val = Scope (Binding str val) scope
+
+fetch :: Scope -> String -> SExpr
+fetch EmptyScope str = error $ "Failed to find string: " ++ str
+fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
+fetch (Scope _ scope) str = fetch scope str
+
+eval :: Program -> [String]
+eval    (Program []) = []
+
+eval_test :: IO ()
+eval_test = myTest "eval" eval testcases
+    where testcases = [
+                        ((Program []), [])
+                      ]
+
 main :: IO ()
 main = do
     putStrLn ""
     lexer_test
     putStrLn ""
     parse_test
+    putStrLn ""
+    eval_test
     putStrLn ""
 
