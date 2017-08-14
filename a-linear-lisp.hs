@@ -97,29 +97,101 @@ lexer_test = myTest "lexer" lexer testcases
                         ("(", [TLparen]),
                         (")", [TRparen]),
                         ("(hello + 11 1)", [TLparen, (TSymbol "hello"), (TSymbol "+"), (TNumber 11), (TNumber 1), TRparen]),
+                        ("a", [(TSymbol "a")]),
+                        ("(if a b c)", [TLparen, (TSymbol "if"), (TSymbol "a"), (TSymbol "b"), (TSymbol "c"), TRparen]),
                         ("", [])
                       ]
 
-data Sexpr = SSymbol String
+data SExpr = SSymbol String
            | SString String
            | SNumber Int
-           | SLet String Sexpr Sexpr
-           | SFdecl String [String] Sexpr
-           | SFcall String [Sexpr]
+           | SLet String SExpr SExpr
+           | SIf SExpr SExpr SExpr
+           | SFdecl String [String] SExpr
+           | SFcall String [SExpr]
     deriving (Show, Eq)
 
-data Program = Program [Sexpr]
+data Program = Program [SExpr]
     deriving (Show, Eq)
+
+-- (fn (name arg1 arg2 ... argn)
+--     body)
+-- (let (name value)
+--      body)
+-- (if cond
+--     then-body
+--     else-body)
+-- (== a b)
+-- (< a b)
+-- (> a b)
+-- (concat str1 str2)
+-- "..."
+-- [0-9]+
+-- (print value)
+-- (println value)
+-- (println)
+
+parseValue :: Token -> SExpr
+parseValue (TString contents) = (SString contents)
+parseValue (TSymbol contents) = (SSymbol contents)
+parseValue (TNumber contents) = (SNumber contents)
+parseValue invalid = error $ "parseValue called with non-value: " ++ show invalid
+
+parseSExprList :: [Token] -> ([SExpr], [Token])
+parseSExprList [] = ([], [])
+parseSExprList tokens = parseSExprListInner [] tokens
+    where parseSExprListInner ::[SExpr] -> [Token]         -> ([SExpr], [Token])
+          parseSExprListInner   sexprs     []               = (sexprs, [])
+          parseSExprListInner   sexprs     (TRparen : rest) = (sexprs, rest)
+          parseSExprListInner   sexprs     something        = parseSExprListInner (sexprs ++ [ssexpr]) rsomething
+            where (ssexpr, rsomething) = parseSExpr something
+
+parseParams :: [Token] -> ([String], [Token])
+parseParams [] = ([], [])
+parseParams tokens = parseParamsInner [] tokens
+    where parseParamsInner ::[String] -> [Token]         -> ([String], [Token])
+          parseParamsInner   strings     []               = (strings, [])
+          parseParamsInner   strings     (TRparen : rest) = (strings, rest)
+          parseParamsInner   strings     ((TSymbol contents) : rest) = parseParamsInner (strings ++ [contents]) rest
+
+parseSExpr :: [Token] -> (SExpr, [Token])
+parseSExpr ((TSymbol contents) : rest) = ((SSymbol contents), rest)
+parseSExpr ((TNumber contents) : rest) = ((SNumber contents), rest)
+parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRparen : rest) = ((SLet name vvalue body), rrest)
+    where (body, rrest) = parseSExpr rest
+          vvalue = parseValue value
+parseSExpr (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
+    where (params, rest1) = parseParams rest
+          (body,   (TRparen:rest2)) = parseSExpr rest1
+parseSExpr (TLparen : (TSymbol "if")  : rest) = ((SIf cond body_then body_else), rest3)
+    where (cond,      rest1) = parseSExpr rest
+          (body_then, rest2) = parseSExpr rest1
+          (body_else, (TRparen:rest3)) = parseSExpr rest2
+parseSExpr (TLparen : (TSymbol name)  : rest) = ((SFcall name args), rrest)
+    where (args, rrest) = parseSExprList rest
+parseSExpr (val : rest) = ((parseValue val), rest)
 
 parse :: [Token] -> Program
 parse [] = Program []
+parse tokens = Program (parse_inner tokens)
+    where parse_inner :: [Token] -> [SExpr]
+          parse_inner    [] = []
+          parse_inner    tokens       = sexpr : parse_inner rest
+            where (sexpr, rest) = parseSExpr tokens
 
 parse_test :: IO ()
 parse_test = myTest "parse" parse testcases
     where testcases = [
-                        ([TLparen, (TSymbol "+"), (TNumber 1), (TNumber 2), TRparen], (Program [(SFcall "+" [(SNumber 1), (SNumber 2)])])),
-                        ([(TString "hello world")], (Program [(SString "hello world")])),
-                        ([], (Program []))
+                        ([TLparen, (TSymbol "+"), (TNumber 1), (TNumber 2), TRparen],
+                         (Program [(SFcall "+" [(SNumber 1), (SNumber 2)])])),
+                        ([(TString "hello world")],
+                         (Program [(SString "hello world")])),
+                        ((lexer "(if a b c)"),
+                         (Program [(SIf (SSymbol "a") (SSymbol "b") (SSymbol "c"))])),
+                        ((lexer "(fn (foo a b) (+ a b))"),
+                         (Program [(SFdecl "foo" ["a", "b"] (SFcall "+" [(SSymbol "a"), (SSymbol "b")]))])),
+                        ([],
+                         (Program []))
                       ]
 
 main :: IO ()
