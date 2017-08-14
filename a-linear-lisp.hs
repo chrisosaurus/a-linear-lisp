@@ -248,6 +248,7 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(if \"heh\" \"pass\" \"fail\")")), ["SString \"pass\""]),
                         ((parse (lexer "(fn (car a b) a)")), []),
                         ((parse (lexer "(fn (car a b) a)(car 1 2)")), ["SNumber 1"]),
+                        ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(car 1 2)(cdr 3 4)")), ["SNumber 1", "SNumber 4"]),
                         ((parse (lexer "")), [])
                       ]
 
