@@ -239,15 +239,15 @@ eval    (Program prog) = eval_in_scope EmptyScope prog
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
-                        ((parse (lexer "(let (a 2) a)")), ["SNumber 2"]),
-                        ((parse (lexer "(let (a c) a)")), ["SSymbol \"c\""]),
-                        ((parse (lexer "(let (a \"Hello\") a)")), ["SString \"Hello\""]),
-                        ((parse (lexer "(let (a 14) (let (b 15) a))")), ["SNumber 14"]),
+                        ((parse (lexer "(let (a 2) a)")),                  ["SNumber 2"]),
+                        ((parse (lexer "(let (a c) a)")),                  ["SSymbol \"c\""]),
+                        ((parse (lexer "(let (a \"Hello\") a)")),          ["SString \"Hello\""]),
+                        ((parse (lexer "(let (a 14) (let (b 15) a))")),    ["SNumber 14"]),
                         ((parse (lexer "(if 1       \"pass\" \"fail\")")), ["SString \"pass\""]),
                         ((parse (lexer "(if \"\"    \"fail\" \"pass\")")), ["SString \"pass\""]),
                         ((parse (lexer "(if \"heh\" \"pass\" \"fail\")")), ["SString \"pass\""]),
-                        ((parse (lexer "(fn (car a b) a)")), []),
-                        ((parse (lexer "(fn (car a b) a)(car 1 2)")), ["SNumber 1"]),
+                        ((parse (lexer "(fn (car a b) a)")),               []),
+                        ((parse (lexer "(fn (car a b) a)(car 1 2)")),      ["SNumber 1"]),
                         ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(car 1 2)(cdr 3 4)")), ["SNumber 1", "SNumber 4"]),
                         ((parse (lexer "")), [])
                       ]
