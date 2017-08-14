@@ -1,6 +1,8 @@
 module Main where
 
-import Data.Char -- isDigit digitToInt
+import Data.Char (isDigit, digitToInt)
+import Control.Monad (foldM)
+import Data.List (delete)
 
 -- general testing function taking
 -- a name to print
@@ -193,6 +195,57 @@ parse_test = myTest "parse" parse testcases
                         ([],
                          (Program []))
                       ]
+
+containsRepeated :: Eq a => [a] -> Bool
+containsRepeated list = containsRepeatedInner list []
+    where containsRepeatedInner :: Eq a => [a] -> [a] -> Bool
+          containsRepeatedInner [] _ = False
+          containsRepeatedInner (x:xs) list = if (x `elem` list)
+                                              then True
+                                              else containsRepeatedInner xs (x:list)
+
+use :: ([String], [String]) -> String -> Either String ([String], [String])
+use (declared, _) name | not (name `elem` declared) = Left $ "Error: variable '" ++ name ++ "' not declared"
+use (_, used) name | name `elem` used = Left $ "Error: variable '" ++ name ++ "' re-used"
+use (declared, used) name | name `elem` used = Right (new_declared,(name:used))
+    where new_declared = Data.List.delete name declared
+
+foldUse :: Either String ([String], [String]) -> [String] -> Either String ([String], [String])
+foldUse either [] = either
+foldUse (Left err) _ = Left err
+foldUse (Right vars) (x:xs) = case (use vars x) of
+                                   (Left err)    -> Left err
+                                   (Right nvars) -> foldUse (Right nvars) xs
+
+eitherToMaybe :: Either String ([String], [String]) -> Maybe String
+eitherToMaybe (Left str) = Just str
+eitherToMaybe _ = Nothing
+
+-- check that every variable:
+--  - is used exactly once
+--  - is defined exactly once before usage
+checkVars :: SExpr -> Maybe String
+checkVars sexpr = eitherToMaybe $ checkVarsInner sexpr ([],[])
+    where checkVarsInner :: SExpr -> ([String],[String]) -> Either String ([String], [String])
+          checkVarsInner (SSymbol name) vars = use vars name
+          checkVarsInner (SString _) vars = Right vars
+          checkVarsInner (SNumber _) vars = Right vars
+
+          checkVarsInner (SLet name _ body) (declared,used) = checkVarsInner body ((name:declared),new_used)
+            where new_used = Data.List.delete name used -- variables can shadow each other
+ --         checkVarsInner (SIf cond body_then body_else) _ _ = Nothing
+--          checkVarsInner (SFdecl _ params body) (declared,used) =
+          checkVarsInner (SFcall _ args) _ | containsRepeated args = Left $ "Error: argument list is not unique '" ++ (show args) ++ "'"
+-- TODO FIXME incorrect
+-- sfcall args are SExpr, not string
+-- need to check that each is fine on it's won
+-- AND that they do not overlap
+-- :/
+--          checkVarsInner (SFcall _ args) vars = foldUse (Right vars) args
+
+-- check static properties
+--check :: Program -> Maybe String
+--check p = checkVars p
 
 data Binding = Binding String SExpr
 
