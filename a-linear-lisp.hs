@@ -158,7 +158,7 @@ parseSExpr :: [Token] -> (SExpr, [Token])
 parseSExpr ((TSymbol contents) : rest) = ((SSymbol contents), rest)
 parseSExpr ((TNumber contents) : rest) = ((SNumber contents), rest)
 parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRparen : rest) = ((SLet name vvalue body), rrest)
-    where (body, rrest) = parseSExpr rest
+    where (body, (TRparen:rrest)) = parseSExpr rest
           vvalue = parseValue value
 parseSExpr (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
     where (params, rest1) = parseParams rest
@@ -188,6 +188,8 @@ parse_test = myTest "parse" parse testcases
                          (Program [(SString "hello world")])),
                         ((lexer "(if a b c)"),
                          (Program [(SIf (SSymbol "a") (SSymbol "b") (SSymbol "c"))])),
+                        ((lexer "(let (a b) c)"),
+                         (Program [(SLet "a" (SSymbol "b") (SSymbol "c"))])),
                         ((lexer "(fn (foo a b) (+ a b))"),
                          (Program [(SFdecl "foo" ["a", "b"] (SFcall "+" [(SSymbol "a"), (SSymbol "b")]))])),
                         ([],
