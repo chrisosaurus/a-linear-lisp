@@ -100,7 +100,33 @@ lexer_test = myTest "lexer" lexer testcases
                         ("", [])
                       ]
 
+data Sexpr = SSymbol String
+           | SString String
+           | SNumber Int
+           | SLet String Sexpr Sexpr
+           | SFdecl String [String] Sexpr
+           | SFcall String [Sexpr]
+    deriving (Show, Eq)
+
+data Program = Program [Sexpr]
+    deriving (Show, Eq)
+
+parse :: [Token] -> Program
+parse [] = Program []
+
+parse_test :: IO ()
+parse_test = myTest "parse" parse testcases
+    where testcases = [
+                        ([TLparen, (TSymbol "+"), (TNumber 1), (TNumber 2), TRparen], (Program [(SFcall "+" [(SNumber 1), (SNumber 2)])])),
+                        ([(TString "hello world")], (Program [(SString "hello world")])),
+                        ([], (Program []))
+                      ]
+
 main :: IO ()
 main = do
+    putStrLn ""
     lexer_test
+    putStrLn ""
+    parse_test
+    putStrLn ""
 
