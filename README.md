@@ -21,7 +21,7 @@ if branching:
 function declaration:
 
     (fn (id id1 ... idn)
-        expresson)
+        expression)
 
 function call:
 
