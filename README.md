@@ -20,7 +20,7 @@ if branching:
 
 function declaration:
 
-    (fn (id arg1 ... argn)
+    (fn (id id1 ... idn)
         expresson)
 
 function call:
