@@ -66,15 +66,20 @@ Booleans:
 ## Example
 
     (fn (min a b)
-        (let (aa (clone a))                  -- consume `a` making 2 copies which are stored in the cons cell `aa`
+        -- consume `a` making 2 copies which are stored in the cons cell `aa`
+        (let (aa (clone a))
             (let (bb (clone b))
-                (split (a1 a2 ab)            -- consume cons cell `aa`, placing the car into `a1` and the cdr into `a2`. both `a1` and `a2` contain copies of the value from `a`
+                -- consume cons cell `aa`, placing the car into `a1` and the cdr into `a2`.
+                -- both `a1` and `a2` contain copies of the value from `a`
+                (split (a1 a2 ab)
                     (split (b1 b2 bb)
-                        (let (cmp (> a1 b1)) -- our comparison consumes both `a1` and `a2`
+                        -- our comparison consumes both `a1` and `a2`
+                        (let (cmp (> a1 b1))
                             (if cmp
-                                (drop a2 b2) -- drop `a2` and evaluate to `b2`
-                                (drop b2 a2) -- drop `b2` and evaluate to `a2`
-                            )))))))
+                                -- if cmp is true, then drop `a2` and evaluate to `b2`
+                                (drop a2 b2)
+                                -- if cmp is false, drop `b2` and evaluate to `a2`
+                                (drop b2 a2))))))))
 
     (min 10 20) -- evaluates to 10
 
