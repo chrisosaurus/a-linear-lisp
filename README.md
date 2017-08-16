@@ -72,7 +72,7 @@ Booleans:
             (let (bb (clone b))
                 -- consume cons cell `aa`, placing the car into `a1` and the cdr into `a2`.
                 -- both `a1` and `a2` contain copies of the value from `a`
-                (split (a1 a2 ab)
+                (split (a1 a2 aa)
                     (split (b1 b2 bb)
                         -- our comparison consumes both `a1` and `a2`
                         (let (cmp (> a1 b1))
@@ -82,7 +82,10 @@ Booleans:
                                 -- if cmp is false, drop `b2` and evaluate to `a2`
                                 (drop b2 a2))))))))
 
-    (min 10 20) -- evaluates to 10
+    (let (q 10)
+         (let (z 20)
+            (min q z))) -- evaluated to 10
+
 
 It is important to note that `clone`, `split`, and `drop` are a bit "odd".
 
