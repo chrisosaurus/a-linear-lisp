@@ -320,6 +320,34 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
 check :: Program -> [Maybe String]
 check (Program sexprs) = deleteAll Nothing (map checkVars sexprs)
 
+check_test :: IO ()
+check_test = myTest "check" check testcases
+    where testcases = [
+                        ((parse (lexer "(let (a 1) (let (b 2)(+ a b)))")),                                                                 []),
+                        ((parse (lexer "(let (a 1) (let (b 1) (== a b)))")),                                                               []),
+                        ((parse (lexer "(let (a 2)(let (b 3)(== a b)))")),                                                                 []),
+                        ((parse (lexer "(let (a 1)(let (b 2)(< a b)))")),                                                                  []),
+                        ((parse (lexer "(let (a 1)(let (b 2)(> a b)))")),                                                                  []),
+                        ((parse (lexer "(let (a \"Hello \")(let (b \"world\")(concat a b)))")),                                            []),
+                        ((parse (lexer "(let (a 2) a)")),                                                                                  []),
+                        ((parse (lexer "(let (a \"Hello\") a)")),                                                                          []),
+                        ((parse (lexer "(let (a 14) (let (b 15) (drop b a)))")),                                                           []),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #t)(if val (drop fail pass) (drop pass fail)))))")), []),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #f)(if val (drop pass fail) (drop fail pass)))))")), []),
+                        ((parse (lexer "(fn (car a b) (drop b a))")),                                                                      []),
+                        ((parse (lexer "(fn (car a b) (drop b a))(fn (cdr a b) (drop a b))(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), []),
+                        ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               []),
+                        ((parse (lexer "(let (a #t) a)")),                                                                                 []),
+                        ((parse (lexer "(let (a #f) a)")),                                                                                 []),
+                        ((parse (lexer "(let (a 4) (let (b 5) (let (cmp (< a b)) cmp)))")),                                                []),
+                        ((parse (lexer "(let (a 4) (let (b (clone a)) b))")),                                                              []),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) c)))")),                                                []),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop cb ca)))))")),                   []),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop ca cb)))))")),                   []),
+                        ((parse (lexer "(let (a 4) (let (b (clone a)) (split (bl br b) (drop bl br))))")),                                 []),
+                        ((parse (lexer "")),                                                                                               [])
+                      ]
+
 data Binding = Binding String SExpr
 
 data Scope = EmptyScope
@@ -404,18 +432,18 @@ eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
                         ((parse (lexer "(let (a 1) (let (b 2)(+ a b)))")),                                                                 [SNumber 3]),
-                        ((parse (lexer "(let (a 1)(== a a))")),                                                                            [SBoolean True]),
+                        ((parse (lexer "(let (a 1) (let (b 1) (== a b)))")),                                                               [SBoolean True]),
                         ((parse (lexer "(let (a 2)(let (b 3)(== a b)))")),                                                                 [SBoolean False]),
                         ((parse (lexer "(let (a 1)(let (b 2)(< a b)))")),                                                                  [SBoolean True]),
                         ((parse (lexer "(let (a 1)(let (b 2)(> a b)))")),                                                                  [SBoolean False]),
                         ((parse (lexer "(let (a \"Hello \")(let (b \"world\")(concat a b)))")),                                            [SString "Hello world"]),
                         ((parse (lexer "(let (a 2) a)")),                                                                                  [SNumber 2]),
                         ((parse (lexer "(let (a \"Hello\") a)")),                                                                          [SString "Hello"]),
-                        ((parse (lexer "(let (a 14) (let (b 15) a))")),                                                                    [SNumber 14]),
-                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #t)(if val       pass fail))))")),               [SString "pass"]),
-                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #f)(if val       fail pass))))")),               [SString "pass"]),
-                        ((parse (lexer "(fn (car a b) a)")),                                                                               []),
-                        ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), [SNumber 1, SNumber 4]),
+                        ((parse (lexer "(let (a 14) (let (b 15) (drop b a)))")),                                                           [SNumber 14]),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #t)(if val (drop fail pass) (drop pass fail)))))")), [SString "pass"]),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #f)(if val (drop pass fail) (drop fail pass)))))")), [SString "pass"]),
+                        ((parse (lexer "(fn (car a b) (drop b a))")),                                                                      []),
+                        ((parse (lexer "(fn (car a b) (drop b a))(fn (cdr a b) (drop a b))(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), [SNumber 1, SNumber 4]),
                         ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               [SNumber 4]),
                         ((parse (lexer "(let (a #t) a)")),                                                                                 [SBoolean True]),
                         ((parse (lexer "(let (a #f) a)")),                                                                                 [SBoolean False]),
@@ -440,6 +468,7 @@ main :: IO ()
 main = do
     lexer_test
     parse_test
+    check_test
     eval_test
     putStrLn "========"
     run "t.all"
