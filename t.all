@@ -2,5 +2,20 @@
     (drop b a))
 
 (let (c 1)
-    (let (d 2)
-        (first c d)))
+     (let (d 2)
+          (first c d)))
+
+(fn (min a b)
+    (let (aa (clone a))
+         (let (bb (clone b))
+              (split (a1 a2 aa)
+                     (split (b1 b2 bb)
+                            (let (cmp (> a1 b1))
+                                 (if cmp
+                                     (drop a2 b2)
+                                     (drop b2 a2))))))))
+
+(let (q 10)
+     (let (z 20)
+        (min q z)))
+

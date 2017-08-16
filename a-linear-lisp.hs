@@ -280,6 +280,7 @@ checkVars :: SExpr -> Maybe String
 checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
     where checkVarsInner :: SExpr -> ([String],[String]) -> Either String ([String], [String])
           checkVarsInner (SSymbol name) vars = use vars name
+          checkVarsInner (SCons _ _) vars = Right vars
           checkVarsInner (SString _) vars = Right vars
           checkVarsInner (SNumber _) vars = Right vars
           checkVarsInner (SBoolean _) vars = Right vars
@@ -287,9 +288,11 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
           checkVarsInner (SDrop name body) vars = case (use vars name) of
                                                     (Left err) -> Left err
                                                     (Right new_vars) -> checkVarsInner body new_vars
-          checkVarsInner (SLet name _ body) vars = case (declare vars name) of
-                                                    (Left err) -> Left err
-                                                    (Right new_vars) -> checkVarsInner body new_vars
+          checkVarsInner (SLet name expr body) vars = case (checkVarsInner expr vars) of
+                                                        (Left err) -> Left err
+                                                        (Right new_vars) -> case (declare new_vars name) of
+                                                            (Left err) -> Left err
+                                                            (Right new_vars2) -> checkVarsInner body new_vars2
           checkVarsInner (SSplit name1 name2 name3 body) vars = case (use vars name3) of
                                                                 (Left err) -> Left err
                                                                 (Right new_vars1) -> case (declare new_vars1 name1) of
