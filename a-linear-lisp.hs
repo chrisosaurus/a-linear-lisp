@@ -4,7 +4,11 @@ module Main where
 
 import Data.Char (isDigit, digitToInt)
 import Control.Monad (foldM)
-import Data.List (delete)
+
+deleteAll :: Eq a => a -> [a] -> [a]
+deleteAll _ [] = []
+deleteAll x (y:ys) | x == y = deleteAll x ys
+deleteAll x (y:ys) | x /= y = y : (deleteAll x ys)
 
 -- abstract grammar
 -- Program = [Expr]
@@ -229,18 +233,22 @@ declare :: ([String], [String]) -> String -> Either String ([String], [String])
 declare (declared, used) name | name `elem` declared = Left $ "Error: variable redeclared overwrites unused variable '" ++ name ++ "'"
 declare (declared, used) name = Right (l,r)
     where l = (name:declared)
-          r = delete name used
+          r = deleteAll name used
 
 use :: ([String], [String]) -> String -> Either String ([String], [String])
-use (declared, _) name | not (name `elem` declared) = Left $ "Error: variable '" ++ name ++ "' not declared"
+use (declared, used) name | not (name `elem` declared) = Left $ "Error: variable '" ++ name ++ "' not declared " ++ (show (declared, used))
 use (_, used) name | name `elem` used = Left $ "Error: variable '" ++ name ++ "' re-used"
-use (declared, used) name | name `elem` used = Right (new_declared,(name:used))
-    where new_declared = Data.List.delete name declared
+use (declared, used) name | name `elem` declared = Right (new_declared,(name:used))
+    where new_declared = deleteAll name declared
+use vars name = Left $ "Internal error: use unknown vars input: " ++ show vars ++ " for name " ++ name
 
-foldMy :: (([String], [String]) -> String -> Either String ([String], [String])) -> Either String ([String], [String]) -> [String] -> Either String ([String], [String])
+foldMy :: (([String], [String]) -> String -> Either String ([String], [String]))
+          -> Either String ([String], [String])
+          -> [String]
+          -> Either String ([String], [String])
 foldMy _ either [] = either
 foldMy _ (Left err) _ = Left err
-foldMy f (Right vars) (x:xs) = case (use vars x) of
+foldMy f (Right vars) (x:xs) = case (f vars x) of
                                    (Left err)    -> Left err
                                    (Right nvars) -> foldMy f (Right nvars) xs
 
@@ -287,8 +295,8 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
           checkVarsInner (SFcall _ args) vars = foldMy use (Right vars) args
 
 -- check static properties
-check :: Program -> [String]
-check (Program sexprs) = map show $ map checkVars sexprs
+check :: Program -> [Maybe String]
+check (Program sexprs) = deleteAll Nothing (map checkVars sexprs)
 
 data Binding = Binding String SExpr
 
@@ -382,13 +390,19 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "")), [])
                       ]
 
+run :: String -> IO ()
+run filename = do
+    contents <- readFile filename
+    let ast = parse (lexer contents) in
+        case (check ast) of
+            []   -> putStrLn $ show $ eval ast
+            errs -> mapM_ (putStrLn . show) errs
+
 main :: IO ()
 main = do
-    putStrLn ""
     lexer_test
-    putStrLn ""
     parse_test
-    putStrLn ""
     eval_test
-    putStrLn ""
+    putStrLn "========"
+    run "t.all"
 

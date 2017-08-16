@@ -1,0 +1,6 @@
+(fn (first a b)
+    (drop b a))
+
+(let (c 1)
+    (let (d 2)
+        (first c d)))
