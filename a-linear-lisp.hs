@@ -136,6 +136,9 @@ data SExpr = SSymbol String
            | SFcall String [String]
            -- drop var 'String' and continue eval in SExpr
            | SDrop String SExpr
+           | SCons SExpr SExpr
+           -- unpack cons into two parts and evaluate SExpr in context
+           | SSplit String String String SExpr
     deriving (Show, Eq)
 
 data Program = Program [SExpr]
@@ -178,13 +181,18 @@ parseParams tokens = parseParamsInner [] tokens
           parseParamsInner   strings     []               = (strings, [])
           parseParamsInner   strings     (TRparen : rest) = (strings, rest)
           parseParamsInner   strings     ((TSymbol contents) : rest) = parseParamsInner (strings ++ [contents]) rest
+          parseParamsInner   strings     tokens = error $ show tokens
 
 parseSExpr :: [Token] -> (SExpr, [Token])
+parseSExpr (TLparen : (TSymbol "split") : TLparen : (TSymbol name1) : (TSymbol name2) : (TSymbol name3) : TRparen : rest) = ((SSplit name1 name2 name3 body), rrest)
+    where (body, (TRparen:rrest)) = parseSExpr rest
 parseSExpr (TLparen : (TSymbol "drop") : (TSymbol name) : rest) = ((SDrop name body), rrest)
     where (body, (TRparen:rrest)) = parseSExpr rest
-parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRparen : rest) = ((SLet name vvalue body), rrest)
-    where (body, (TRparen:rrest)) = parseSExpr rest
-          vvalue = parseValue value
+
+parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : rest) = ((SLet name sexpr body), rrrest)
+    where (sexpr, (TRparen:rrest)) = parseSExpr rest
+          (body, (TRparen:rrrest)) = parseSExpr rrest
+
 parseSExpr (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
     where (params, rest1) = parseParams rest
           (body,   (TRparen:rest2)) = parseSExpr rest1
@@ -282,6 +290,13 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
           checkVarsInner (SLet name _ body) vars = case (declare vars name) of
                                                     (Left err) -> Left err
                                                     (Right new_vars) -> checkVarsInner body new_vars
+          checkVarsInner (SSplit name1 name2 name3 body) vars = case (use vars name3) of
+                                                                (Left err) -> Left err
+                                                                (Right new_vars1) -> case (declare new_vars1 name1) of
+                                                                    (Left err) -> Left err
+                                                                    (Right new_vars2) ->  case (declare new_vars2 name2) of
+                                                                                    (Left err) -> Left err
+                                                                                    (Right new_vars3) -> checkVarsInner body new_vars3
           checkVarsInner (SIf cond body_then body_else) vars = case (use vars cond) of
                                                                 (Left err) -> Left err
                                                                 (Right vars1) -> case (checkVarsInner body_then vars1) of
@@ -324,6 +339,8 @@ fcallScope scope [] [] = scope
 fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
 
 primop :: Scope -> String -> [String] -> SExpr
+primop scope "clone" (arg:[]) = SCons val val
+    where val = fetch scope arg
 primop scope "+" (left:right:[]) = SNumber (lleft + rright)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
@@ -352,8 +369,11 @@ eval_in_scope    scope ((SSymbol name):rest) =  (fetch scope name) : eval_in_sco
 -- TODO FIXME drop should delete name from scope
 -- here we are relying on 'check' preventing reuse, which is less clean
 eval_in_scope    scope ((SDrop name body):rest) = eval_in_scope scope [body]
+
 eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
-    where let_scope = insert scope name val
+    where [nval] = eval_in_scope let_scope [val]
+          let_scope = insert scope name nval
+
 eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
     where new_scope = insert scope name val
             where val = (SFdecl name params body)
@@ -361,7 +381,7 @@ eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (fetch
                                                                then (eval_in_scope scope [body_then])
                                                                else (eval_in_scope scope [body_else])
 eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
-    where primops = [ "+", "==", "<", ">", "concat" ]
+    where primops = [ "clone", "+", "==", "<", ">", "concat" ]
 eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
     where (SFdecl _ params fbody) = fetch scope name
           new_scope = fcallScope scope params (map (fetch scope) args)
@@ -380,7 +400,6 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(let (a 1)(let (b 2)(> a b)))")),                                                                  [SBoolean False]),
                         ((parse (lexer "(let (a \"Hello \")(let (b \"world\")(concat a b)))")),                                            [SString "Hello world"]),
                         ((parse (lexer "(let (a 2) a)")),                                                                                  [SNumber 2]),
-                        ((parse (lexer "(let (a c) a)")),                                                                                  [SSymbol "c"]),
                         ((parse (lexer "(let (a \"Hello\") a)")),                                                                          [SString "Hello"]),
                         ((parse (lexer "(let (a 14) (let (b 15) a))")),                                                                    [SNumber 14]),
                         ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #t)(if val       pass fail))))")),               [SString "pass"]),
@@ -390,6 +409,8 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               [SNumber 4]),
                         ((parse (lexer "(let (a #t) a)")),                                                                                 [SBoolean True]),
                         ((parse (lexer "(let (a #f) a)")),                                                                                 [SBoolean False]),
+                        ((parse (lexer "(let (a 4) (let (b 5) (let (cmp (< a b)) cmp)))")),                                                [SBoolean True]),
+                        ((parse (lexer "(let (a 4) (let (b (clone a)) b))")),                                                              [SCons (SNumber 4) (SNumber 4)]),
                         ((parse (lexer "")), [])
                       ]
 
