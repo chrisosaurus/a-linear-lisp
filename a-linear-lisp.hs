@@ -77,6 +77,7 @@ data Token = TSymbol String
            | TRparen
            | TString String
            | TNumber Int
+           | TBoolean Bool
     deriving (Show, Eq)
 
 lexer :: String     -> [Token]
@@ -87,6 +88,8 @@ lexer    ('\t':rest) = lexer rest
 lexer    ('\r':rest) = lexer rest
 lexer    ('(' :rest) = TLparen : lexer rest
 lexer    (')' :rest) = TRparen : lexer rest
+lexer    ('#' : 't' : rest) = (TBoolean True) : lexer rest
+lexer    ('#' : 'f' : rest) = (TBoolean False) : lexer rest
 lexer    ('"' :rest) = (TString contents) : lexer rrest
     where (contents, rrest) = consumeString rest
              where consumeString :: String -> (String, String)
@@ -126,6 +129,7 @@ lexer_test = myTest "lexer" lexer testcases
 data SExpr = SSymbol String
            | SString String
            | SNumber Int
+           | SBoolean Bool
            | SLet String SExpr SExpr
            | SIf String SExpr SExpr
            | SFdecl String [String] SExpr
@@ -155,6 +159,7 @@ parseValue :: Token -> SExpr
 parseValue (TString contents) = (SString contents)
 parseValue (TSymbol contents) = (SSymbol contents)
 parseValue (TNumber contents) = (SNumber contents)
+parseValue (TBoolean contents) = (SBoolean contents)
 parseValue invalid = error $ "parseValue called with non-value: " ++ show invalid
 
 parseSExprList :: [Token] -> ([SExpr], [Token])
@@ -175,8 +180,6 @@ parseParams tokens = parseParamsInner [] tokens
           parseParamsInner   strings     ((TSymbol contents) : rest) = parseParamsInner (strings ++ [contents]) rest
 
 parseSExpr :: [Token] -> (SExpr, [Token])
-parseSExpr ((TSymbol contents) : rest) = ((SSymbol contents), rest)
-parseSExpr ((TNumber contents) : rest) = ((SNumber contents), rest)
 parseSExpr (TLparen : (TSymbol "drop") : (TSymbol name) : rest) = ((SDrop name body), rrest)
     where (body, (TRparen:rrest)) = parseSExpr rest
 parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : value : TRparen : rest) = ((SLet name vvalue body), rrest)
@@ -271,6 +274,7 @@ checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
           checkVarsInner (SSymbol name) vars = use vars name
           checkVarsInner (SString _) vars = Right vars
           checkVarsInner (SNumber _) vars = Right vars
+          checkVarsInner (SBoolean _) vars = Right vars
 
           checkVarsInner (SDrop name body) vars = case (use vars name) of
                                                     (Left err) -> Left err
@@ -312,6 +316,7 @@ fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
 truthy :: SExpr -> Bool
+truthy (SBoolean contents) = contents
 truthy (SString "") = False
 truthy (SNumber 0) = False
 truthy _  = True
@@ -387,6 +392,8 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(fn (car a b) a)")),                                                                               []),
                         ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), [SNumber 1, SNumber 4]),
                         ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               [SNumber 4]),
+                        ((parse (lexer "(let (a #t) a)")),                                                                                 [SBoolean True]),
+                        ((parse (lexer "(let (a #f) a)")),                                                                                 [SBoolean False]),
                         ((parse (lexer "")), [])
                       ]
 
