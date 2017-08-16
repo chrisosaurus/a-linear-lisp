@@ -31,7 +31,7 @@ drop - discard a linear value and then continue evaluation of expression:
 
     (drop id expression)
 
-split - linearly break apart a cons cell into two parts and then continue
+split - linearly break apart a cons cell (id3) into two parts (id1 and id2) and then continue
 evaluation of expression:
 
     (split (id1 id id3)
@@ -44,6 +44,7 @@ evaluation of expression:
     (< id1 id2)
     (> id1 id2)
     (concat id1 id2)
+    (cons id1 id2)
     (clone id)
 
 ## Values
