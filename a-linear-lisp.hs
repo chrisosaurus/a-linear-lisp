@@ -456,13 +456,17 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "")), [])
                       ]
 
-run :: String -> IO ()
-run filename = do
-    contents <- readFile filename
+run :: String -> [String]
+run contents =
     let ast = parse (lexer contents) in
         case (check ast) of
-            []   -> putStrLn $ show $ eval ast
-            errs -> mapM_ (putStrLn . show) errs
+            []   -> map show $ eval ast
+            errs -> map show errs
+
+run_on_file :: String -> IO ()
+run_on_file filename = do
+    contents <- readFile filename
+    mapM_ putStrLn (run contents)
 
 main :: IO ()
 main = do
@@ -471,5 +475,5 @@ main = do
     check_test
     eval_test
     putStrLn "========"
-    run "t.all"
+    run_on_file "t.all"
 
