@@ -317,9 +317,6 @@ fetch (Scope _ scope) str = fetch scope str
 
 truthy :: SExpr -> Bool
 truthy (SBoolean contents) = contents
-truthy (SString "") = False
-truthy (SNumber 0) = False
-truthy _  = True
 
 -- create the new scope for an fcall
 fcallScope :: Scope -> [String] -> [SExpr] -> Scope
@@ -330,13 +327,13 @@ primop :: Scope -> String -> [String] -> SExpr
 primop scope "+" (left:right:[]) = SNumber (lleft + rright)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
-primop scope "==" (left:right:[]) = if (lleft == rright) then (SNumber 1) else (SNumber 0)
+primop scope "==" (left:right:[]) = if (lleft == rright) then (SBoolean True) else (SBoolean False)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
-primop scope "<" (left:right:[]) = if (lleft < rright) then (SNumber 1) else (SNumber 0)
+primop scope "<" (left:right:[]) = if (lleft < rright) then (SBoolean True) else (SBoolean False)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
-primop scope ">" (left:right:[]) = if (lleft > rright) then (SNumber 1) else (SNumber 0)
+primop scope ">" (left:right:[]) = if (lleft > rright) then (SBoolean True) else (SBoolean False)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
 primop scope "concat" (left:right:[]) = SString (lleft ++ rright)
@@ -377,18 +374,17 @@ eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
     where testcases = [
                         ((parse (lexer "(let (a 1) (let (b 2)(+ a b)))")),                                                                 [SNumber 3]),
-                        ((parse (lexer "(let (a 1)(== a a))")),                                                                            [SNumber 1]),
-                        ((parse (lexer "(let (a 2)(let (b 3)(== a b)))")),                                                                 [SNumber 0]),
-                        ((parse (lexer "(let (a 1)(let (b 2)(< a b)))")),                                                                  [SNumber 1]),
-                        ((parse (lexer "(let (a 1)(let (b 2)(> a b)))")),                                                                  [SNumber 0]),
+                        ((parse (lexer "(let (a 1)(== a a))")),                                                                            [SBoolean True]),
+                        ((parse (lexer "(let (a 2)(let (b 3)(== a b)))")),                                                                 [SBoolean False]),
+                        ((parse (lexer "(let (a 1)(let (b 2)(< a b)))")),                                                                  [SBoolean True]),
+                        ((parse (lexer "(let (a 1)(let (b 2)(> a b)))")),                                                                  [SBoolean False]),
                         ((parse (lexer "(let (a \"Hello \")(let (b \"world\")(concat a b)))")),                                            [SString "Hello world"]),
                         ((parse (lexer "(let (a 2) a)")),                                                                                  [SNumber 2]),
                         ((parse (lexer "(let (a c) a)")),                                                                                  [SSymbol "c"]),
                         ((parse (lexer "(let (a \"Hello\") a)")),                                                                          [SString "Hello"]),
                         ((parse (lexer "(let (a 14) (let (b 15) a))")),                                                                    [SNumber 14]),
-                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val 1)(if val       pass fail))))")),                [SString "pass"]),
-                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val \"\")(if val    fail pass))))")),                [SString "pass"]),
-                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val \"heh\")(if val pass fail))))")),                [SString "pass"]),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #t)(if val       pass fail))))")),               [SString "pass"]),
+                        ((parse (lexer "(let (pass \"pass\")(let (fail \"fail\")(let (val #f)(if val       fail pass))))")),               [SString "pass"]),
                         ((parse (lexer "(fn (car a b) a)")),                                                                               []),
                         ((parse (lexer "(fn (car a b) a)(fn (cdr a b) b)(let (a 1)(let (b 2)(car a b)))(let (a 3)(let (b 4)(cdr a b)))")), [SNumber 1, SNumber 4]),
                         ((parse (lexer "(let (a 3)(let (b 4)(drop a b)))")),                                                               [SNumber 4]),
