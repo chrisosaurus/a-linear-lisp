@@ -339,6 +339,9 @@ fcallScope scope [] [] = scope
 fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
 
 primop :: Scope -> String -> [String] -> SExpr
+primop scope "cons" (left:right:[]) = SCons lleft rright
+    where lleft = fetch scope left
+          rright = fetch scope right
 primop scope "clone" (arg:[]) = SCons val val
     where val = fetch scope arg
 primop scope "+" (left:right:[]) = SNumber (lleft + rright)
@@ -369,6 +372,10 @@ eval_in_scope    scope ((SSymbol name):rest) =  (fetch scope name) : eval_in_sco
 -- TODO FIXME drop should delete name from scope
 -- here we are relying on 'check' preventing reuse, which is less clean
 eval_in_scope    scope ((SDrop name body):rest) = eval_in_scope scope [body]
+eval_in_scope    scope ((SSplit name1 name2 name3 body):rest) = eval_in_scope split_scope_2 [body]
+    where (SCons left right) = fetch scope name3
+          split_scope_1 = insert scope name1 left
+          split_scope_2 = insert split_scope_1 name2 right
 
 eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
     where [nval] = eval_in_scope let_scope [val]
@@ -381,7 +388,7 @@ eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (fetch
                                                                then (eval_in_scope scope [body_then])
                                                                else (eval_in_scope scope [body_else])
 eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
-    where primops = [ "clone", "+", "==", "<", ">", "concat" ]
+    where primops = [ "cons", "clone", "+", "==", "<", ">", "concat" ]
 eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
     where (SFdecl _ params fbody) = fetch scope name
           new_scope = fcallScope scope params (map (fetch scope) args)
@@ -411,6 +418,10 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(let (a #f) a)")),                                                                                 [SBoolean False]),
                         ((parse (lexer "(let (a 4) (let (b 5) (let (cmp (< a b)) cmp)))")),                                                [SBoolean True]),
                         ((parse (lexer "(let (a 4) (let (b (clone a)) b))")),                                                              [SCons (SNumber 4) (SNumber 4)]),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) c)))")),                                                [SCons (SNumber 4) (SBoolean True)]),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop cb ca)))))")),                   [SNumber 4]),
+                        ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop ca cb)))))")),                   [SBoolean True]),
+                        ((parse (lexer "(let (a 4) (let (b (clone a)) (split (bl br b) (drop bl br))))")),                                 [SNumber 4]),
                         ((parse (lexer "")), [])
                       ]
 
