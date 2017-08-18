@@ -39,11 +39,11 @@ evaluation of expression:
 
 ## Primitive operations
 
-    (+ id1 id2)
     (== id1 id2)
     (< id1 id2)
     (> id1 id2)
-    (concat id1 id2)
+    (+ id1 id2 ...)
+    (concat id1 id2 ...)
     (cons id1 id2)
     (clone id)
 
