@@ -385,6 +385,13 @@ fetch EmptyScope str = error $ "Failed to find string: " ++ str
 fetch (Scope (Binding str1 val1) _) str | str == str1 = val1
 fetch (Scope _ scope) str = fetch scope str
 
+removeFromScope :: Scope -> String -> Scope
+removeFromScope EmptyScope _ = EmptyScope
+removeFromScope (Scope b@(Binding s _) scope) string
+    = if s == string
+        then removeFromScope scope string
+        else (Scope b (removeFromScope scope string))
+
 truthy :: SExpr -> Bool
 truthy (SBoolean contents) = contents
 
@@ -420,9 +427,8 @@ primop _ name _ = error $ "Unknown primop: " ++ show name
 
 eval_in_scope :: Scope -> SExpr -> SExpr
 eval_in_scope    scope (SSymbol name) =  fetch scope name
--- TODO FIXME drop should delete name from scope
--- here we are relying on 'check' preventing reuse, which is less clean
-eval_in_scope    scope (SDrop name body) = eval_in_scope scope body
+eval_in_scope    scope (SDrop name body) = eval_in_scope new_scope body
+    where new_scope = removeFromScope scope name
 eval_in_scope    scope (SSplit name1 name2 name3 body) = eval_in_scope split_scope_2 body
     where (SCons left right) = fetch scope name3
           split_scope_1 = insert scope name1 left
