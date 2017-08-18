@@ -76,3 +76,21 @@
                         (let (answer (cdr cell))
                             (assert answer al test-name))))))))
 
+(fn (add-one-to-each cell)
+    (split (l r cell)
+        (let (one1 1)
+            (let (one2 1)
+                (let (ll (+ l one1))
+                     (let (rr (+ r one2))
+                          (cons ll rr)))))))
+
+(let (test-name "add-one-to-each")
+    (let (a 1)
+        (let (expected-a 2)
+            (let (b 2)
+                (let (expected-b 3)
+                    (let (cell (cons a b))
+                        (let (expected-answer (cons expected-a expected-b))
+                            (let (answer (add-one-to-each cell))
+                                (assert answer expected-answer test-name)))))))))
+

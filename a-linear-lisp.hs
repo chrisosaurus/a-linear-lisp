@@ -403,8 +403,8 @@ primop scope "+" (left:right:[]) = SNumber (lleft + rright)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
 primop scope "==" (left:right:[]) = if (lleft == rright) then (SBoolean True) else (SBoolean False)
-    where (SNumber lleft) = fetch scope left
-          (SNumber rright) = fetch scope right
+    where lleft = fetch scope left
+          rright = fetch scope right
 primop scope "<" (left:right:[]) = if (lleft < rright) then (SBoolean True) else (SBoolean False)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
