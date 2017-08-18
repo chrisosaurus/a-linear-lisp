@@ -1,9 +1,11 @@
-(fn (first a b)
-    (drop b a))
 
-(let (c 1)
-     (let (d 2)
-          (first c d)))
+(fn (assert expr val test-name)
+    (let (pass "pass ")
+        (let (fail "fail ")
+            (let (c (== expr val))
+                (if c
+                    (drop fail (concat pass test-name))
+                    (drop pass (concat fail test-name)))))))
 
 (fn (min a b)
     (let (aa (clone a))
@@ -15,33 +17,42 @@
                                      (drop a2 b2)
                                      (drop b2 a2))))))))
 
-(let (q 10)
-     (let (z 20)
-        (min q z)))
+(let (test-name "min")
+    (let (a 10)
+         (let (b 20)
+            (let (answer (min a b))
+                (let (correct 10)
+                    (assert answer correct test-name))))))
+
+(fn (max a b)
+    (let (aa (clone a))
+         (let (bb (clone b))
+              (split (a1 a2 aa)
+                     (split (b1 b2 bb)
+                            (let (cmp (< a1 b1))
+                                 (if cmp
+                                     (drop a2 b2)
+                                     (drop b2 a2))))))))
+
+(let (test-name "max")
+    (let (a 10)
+         (let (b 20)
+            (let (answer (max a b))
+                (let (correct 20)
+                    (assert answer correct test-name))))))
 
 (fn (id a)
     a)
 
-(fn (car cell)
-    (split (l r cell)
-        (drop r l)))
-
-(fn (cdr cell)
-    (split (l r cell)
-        (drop l r)))
-
-(fn (assert expr val test-name)
-    (let (pass "pass ")
-        (let (fail "fail ")
-            (let (c (== expr val))
-                (if c
-                    (drop fail (concat pass test-name))
-                    (drop pass (concat fail test-name)))))))
 (let (test-name "id")
     (let (a 14)
         (let (aa (clone a))
             (split (al ar aa)
                 (assert al ar test-name)))))
+
+(fn (car cell)
+    (split (l r cell)
+        (drop r l)))
 
 (let (test-name "car")
     (let (a 14)
@@ -51,6 +62,10 @@
                     (let (cell (cons ar wrong))
                         (let (answer (car cell))
                             (assert answer al test-name))))))))
+
+(fn (cdr cell)
+    (split (l r cell)
+        (drop l r)))
 
 (let (test-name "cdr")
     (let (a 14)
