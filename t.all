@@ -19,3 +19,45 @@
      (let (z 20)
         (min q z)))
 
+(fn (id a)
+    a)
+
+(fn (car cell)
+    (split (l r cell)
+        (drop r l)))
+
+(fn (cdr cell)
+    (split (l r cell)
+        (drop l r)))
+
+(fn (assert expr val name)
+    (let (pass "pass ")
+        (let (fail "fail ")
+            (let (c (== expr val))
+                (if c
+                    (drop fail (concat pass name))
+                    (drop pass (concat fail name)))))))
+(let (name "id")
+    (let (a 14)
+        (let (aa (clone a))
+            (split (al ar aa)
+                (assert al ar name)))))
+
+(let (name "car")
+    (let (a 14)
+        (let (aa (clone a))
+            (split (al ar aa)
+                (let (wrong 15)
+                    (let (cell (cons ar wrong))
+                        (let (answer (car cell))
+                            (assert answer al name))))))))
+
+(let (name "cdr")
+    (let (a 14)
+        (let (aa (clone a))
+            (split (al ar aa)
+                (let (wrong 15)
+                    (let (cell (cons wrong ar))
+                        (let (answer (cdr cell))
+                            (assert answer al name))))))))
+
