@@ -130,9 +130,9 @@ data SExpr = SSymbol String
            | SString String
            | SNumber Int
            | SBoolean Bool
+           | SFuncVal String [String] SExpr
            | SLet String SExpr SExpr
            | SIf String SExpr SExpr
-           | SFdecl String [String] SExpr
            | SFcall String [String]
            -- drop var 'String' and continue eval in SExpr
            | SDrop String SExpr
@@ -141,7 +141,11 @@ data SExpr = SSymbol String
            | SSplit String String String SExpr
     deriving (Show, Eq)
 
-data Program = Program [SExpr]
+data SStmt = SStmtExpr SExpr
+           | SFdecl String [String] SExpr
+    deriving (Show, Eq)
+
+data Program = Program [SStmt]
     deriving (Show, Eq)
 
 -- (fn (name arg1 arg2 ... argn)
@@ -193,9 +197,6 @@ parseSExpr (TLparen : (TSymbol "let") : TLparen : (TSymbol name) : rest) = ((SLe
     where (sexpr, (TRparen:rrest)) = parseSExpr rest
           (body, (TRparen:rrrest)) = parseSExpr rrest
 
-parseSExpr (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
-    where (params, rest1) = parseParams rest
-          (body,   (TRparen:rest2)) = parseSExpr rest1
 parseSExpr (TLparen : (TSymbol "if")  : (TSymbol cond): rest) = ((SIf cond body_then body_else), rest2)
     where (body_then, rest1) = parseSExpr rest
           (body_else, (TRparen:rest2)) = parseSExpr rest1
@@ -203,31 +204,39 @@ parseSExpr (TLparen : (TSymbol name)  : rest) = ((SFcall name args), rrest)
     where (args, rrest) = parseParams rest
 parseSExpr (val : rest) = ((parseValue val), rest)
 
+parseSStmt :: [Token] -> (SStmt, [Token])
+parseSStmt (TLparen : (TSymbol "fn")  : TLparen : (TSymbol name) : rest) = ((SFdecl name params body), rest2)
+    where (params, rest1) = parseParams rest
+          (body,   (TRparen:rest2)) = parseSExpr rest1
+parseSStmt tokens = ((SStmtExpr sexpr), rest)
+    where (sexpr, rest) = parseSExpr tokens
+
+
 parse :: [Token] -> Program
 parse [] = Program []
 parse tokens = Program (parse_inner tokens)
-    where parse_inner :: [Token] -> [SExpr]
+    where parse_inner :: [Token] -> [SStmt]
           parse_inner    [] = []
-          parse_inner    tokens       = sexpr : parse_inner rest
-            where (sexpr, rest) = parseSExpr tokens
+          parse_inner    tokens       = sstmt : parse_inner rest
+            where (sstmt, rest) = parseSStmt tokens
 
 parse_test :: IO ()
 parse_test = myTest "parse" parse testcases
     where testcases = [
                         ((lexer "(let (a 1) (let (b 2) (+ a b)))"),
-                         (Program [(SLet "a" (SNumber 1) (SLet "b" (SNumber 2) (SFcall "+" ["a", "b"])))])),
+                         (Program [(SStmtExpr (SLet "a" (SNumber 1) (SLet "b" (SNumber 2) (SFcall "+" ["a", "b"]))))])),
                         ([(TString "hello world")],
-                         (Program [(SString "hello world")])),
+                         (Program [(SStmtExpr (SString "hello world"))])),
                         ((lexer "(if a b c)"),
-                         (Program [(SIf "a" (SSymbol "b") (SSymbol "c"))])),
+                         (Program [(SStmtExpr (SIf "a" (SSymbol "b") (SSymbol "c")))])),
                         ((lexer "(let (a b) c)"),
-                         (Program [(SLet "a" (SSymbol "b") (SSymbol "c"))])),
+                         (Program [(SStmtExpr (SLet "a" (SSymbol "b") (SSymbol "c")))])),
                         ((lexer "(fn (foo a b) (+ a b))"),
                          (Program [(SFdecl "foo" ["a", "b"] (SFcall "+" ["a", "b"]))])),
                         ((lexer "(let (a \"Hello\") (let (b \" world\") (concat a b)))"),
-                         (Program [(SLet "a" (SString "Hello") (SLet "b" (SString " world") (SFcall "concat" ["a", "b"])))])),
+                         (Program [(SStmtExpr (SLet "a" (SString "Hello") (SLet "b" (SString " world") (SFcall "concat" ["a", "b"]))))])),
                         ((lexer "(let (a 3)(let (b 4)(drop a b)))",
-                         (Program [(SLet "a" (SNumber 3) (SLet "b" (SNumber 4) (SDrop "a" (SSymbol "b"))))]))),
+                         (Program [(SStmtExpr (SLet "a" (SNumber 3) (SLet "b" (SNumber 4) (SDrop "a" (SSymbol "b")))))]))),
                         ([],
                          (Program []))
                       ]
@@ -275,50 +284,65 @@ checkVarsResult (Right (unused,_)) = Just $ "Error: unused variables '" ++ show 
 -- check that every variable:
 --  - is used exactly once
 --  - is defined exactly once before usage
-checkVars :: SExpr -> Maybe String
--- we need to verify that every leaf uses all vars
-checkVars sexpr = checkVarsResult $ checkVarsInner sexpr ([],[])
-    where checkVarsInner :: SExpr -> ([String],[String]) -> Either String ([String], [String])
-          checkVarsInner (SSymbol name) vars = use vars name
-          checkVarsInner (SCons _ _) vars = Right vars
-          checkVarsInner (SString _) vars = Right vars
-          checkVarsInner (SNumber _) vars = Right vars
-          checkVarsInner (SBoolean _) vars = Right vars
+checkVars :: SExpr -> ([String],[String]) -> Either String ([String], [String])
+checkVars (SSymbol name) vars = use vars name
+checkVars (SCons _ _) vars = Right vars
+checkVars (SString _) vars = Right vars
+checkVars (SNumber _) vars = Right vars
+checkVars (SBoolean _) vars = Right vars
 
-          checkVarsInner (SDrop name body) vars = case (use vars name) of
-                                                    (Left err) -> Left err
-                                                    (Right new_vars) -> checkVarsInner body new_vars
-          checkVarsInner (SLet name expr body) vars = case (checkVarsInner expr vars) of
-                                                        (Left err) -> Left err
-                                                        (Right new_vars) -> case (declare new_vars name) of
-                                                            (Left err) -> Left err
-                                                            (Right new_vars2) -> checkVarsInner body new_vars2
-          checkVarsInner (SSplit name1 name2 name3 body) vars = case (use vars name3) of
-                                                                (Left err) -> Left err
-                                                                (Right new_vars1) -> case (declare new_vars1 name1) of
-                                                                    (Left err) -> Left err
-                                                                    (Right new_vars2) ->  case (declare new_vars2 name2) of
-                                                                                    (Left err) -> Left err
-                                                                                    (Right new_vars3) -> checkVarsInner body new_vars3
-          checkVarsInner (SIf cond body_then body_else) vars = case (use vars cond) of
-                                                                (Left err) -> Left err
-                                                                (Right vars1) -> case (checkVarsInner body_then vars1) of
-                                                                                (Left err) -> Left err
-                                                                                -- we need to verify that every leaf uses all vars
-                                                                                (Right ([], _)) -> checkVarsInner body_else vars1
-                                                                                (Right (unused, _)) -> Right (unused, [])
-          checkVarsInner (SFdecl _ params body) _ | containsRepeated params = Left $ "Error: parameter list is not unique '" ++ (show params) ++ "'"
-          checkVarsInner (SFdecl _ params body) vars = case (foldMy declare (Right vars) params) of
-                                                        (Left err) -> Left err
-                                                        (Right new_vars) -> checkVarsInner body new_vars
-          -- check args are not repeated (used more than once in this call)
-          checkVarsInner (SFcall _ args) _ | containsRepeated args = Left $ "Error: argument list is not unique '" ++ (show args) ++ "'"
-          -- check that every arg is defined and previous unused
-          checkVarsInner (SFcall _ args) vars = foldMy use (Right vars) args
+checkVars (SDrop name body) vars = case (use vars name) of
+                                          (Left err) -> Left err
+                                          (Right new_vars) -> checkVars body new_vars
+checkVars (SLet name expr body) vars = case (checkVars expr vars) of
+                                              (Left err) -> Left err
+                                              (Right new_vars) -> case (declare new_vars name) of
+                                                  (Left err) -> Left err
+                                                  (Right new_vars2) -> checkVars body new_vars2
+checkVars (SSplit name1 name2 name3 body) vars = case (use vars name3) of
+                                                      (Left err) -> Left err
+                                                      (Right new_vars1) -> case (declare new_vars1 name1) of
+                                                          (Left err) -> Left err
+                                                          (Right new_vars2) ->  case (declare new_vars2 name2) of
+                                                                          (Left err) -> Left err
+                                                                          (Right new_vars3) -> checkVars body new_vars3
+checkVars (SIf cond body_then body_else) vars = case (use vars cond) of
+                                                      (Left err) -> Left err
+                                                      (Right vars1) -> case (checkVars body_then vars1) of
+                                                                      (Left err) -> Left err
+                                                                      -- we need to verify that every leaf uses all vars
+                                                                      (Right ([], _)) -> checkVars body_else vars1
+                                                                      (Right (unused, _)) -> Right (unused, [])
+-- check args are not repeated (used more than once in this call)
+checkVars (SFcall _ args) _ | containsRepeated args = Left $ "Error: argument list is not unique '" ++ (show args) ++ "'"
+-- check that every arg is defined and previous unused
+checkVars (SFcall _ args) vars = foldMy use (Right vars) args
+
+
+checkVarsStmt :: SStmt -> ([String], [String]) -> Either String ([String], [String])
+checkVarsStmt (SStmtExpr sexpr) vars = checkVars sexpr vars
+checkVarsStmt (SFdecl _ params body) _ | containsRepeated params = Left $ "Error: parameter list is not unique '" ++ (show params) ++ "'"
+checkVarsStmt (SFdecl _ params body) vars = case (foldMy declare (Right vars) params) of
+                                            (Left err) -> Left err
+                                            (Right new_vars) -> checkVars body new_vars
+
+removeNothing :: [Maybe String] -> [String]
+removeNothing [] = []
+removeNothing (Nothing : rest) = removeNothing rest
+removeNothing ((Just s) : rest) = s : removeNothing rest
+
+
+checkVarsStmts :: [SStmt] -> [String]
+checkVarsStmts stmts = removeNothing $ inner stmts ([], [])
+    where inner :: [SStmt] -> ([String], [String]) -> [Maybe String]
+          inner [] _ = []
+          inner (s:stmts) vars = case (checkVarsStmt s vars) of
+                (Left err) -> (Just err) : (inner stmts vars)
+                (Right new_vars) -> inner stmts new_vars
 
 -- check static properties
-check :: Program -> [Maybe String]
-check (Program sexprs) = deleteAll Nothing (map checkVars sexprs)
+check :: Program -> [String]
+check (Program sstmts) = checkVarsStmts sstmts
 
 check_test :: IO ()
 check_test = myTest "check" check testcases
@@ -392,41 +416,45 @@ primop scope "concat" (left:right:[]) = SString (lleft ++ rright)
           (SString rright) = fetch scope right
 primop _ name _ = error $ "Unknown primop: " ++ show name
 
--- TODO FIXME make eval_single :: Scope -> SExpr -> SExpr
--- and then have the other evals wrap
-
 -- TODO FIXME make primops n-ary
 
-eval_in_scope :: Scope -> [SExpr] -> [SExpr]
-eval_in_scope    _ [] = []
-eval_in_scope    scope ((SSymbol name):rest) =  (fetch scope name) : eval_in_scope scope rest
+eval_in_scope :: Scope -> SExpr -> SExpr
+eval_in_scope    scope (SSymbol name) =  fetch scope name
 -- TODO FIXME drop should delete name from scope
 -- here we are relying on 'check' preventing reuse, which is less clean
-eval_in_scope    scope ((SDrop name body):rest) = eval_in_scope scope [body]
-eval_in_scope    scope ((SSplit name1 name2 name3 body):rest) = eval_in_scope split_scope_2 [body]
+eval_in_scope    scope (SDrop name body) = eval_in_scope scope body
+eval_in_scope    scope (SSplit name1 name2 name3 body) = eval_in_scope split_scope_2 body
     where (SCons left right) = fetch scope name3
           split_scope_1 = insert scope name1 left
           split_scope_2 = insert split_scope_1 name2 right
 
-eval_in_scope    scope ((SLet name val body):rest) = (eval_in_scope let_scope [body]) ++ eval_in_scope scope rest
-    where [nval] = eval_in_scope let_scope [val]
+eval_in_scope    scope (SLet name val body) = eval_in_scope let_scope body
+    where nval = eval_in_scope let_scope val
           let_scope = insert scope name nval
 
-eval_in_scope    scope ((SFdecl name params body):rest) = eval_in_scope new_scope rest
-    where new_scope = insert scope name val
-            where val = (SFdecl name params body)
-eval_in_scope    scope ((SIf cond body_then body_else):rest) = if (truthy (fetch scope cond))
-                                                               then (eval_in_scope scope [body_then])
-                                                               else (eval_in_scope scope [body_else])
-eval_in_scope    scope ((SFcall name args):rest) | name `elem` primops = (primop scope name args) : eval_in_scope scope rest
+eval_in_scope    scope (SIf cond body_then body_else) = if (truthy (fetch scope cond))
+                                                               then (eval_in_scope scope body_then)
+                                                               else (eval_in_scope scope body_else)
+eval_in_scope    scope (SFcall name args) | name `elem` primops = primop scope name args
     where primops = [ "cons", "clone", "+", "==", "<", ">", "concat" ]
-eval_in_scope    scope ((SFcall name args):rest) =  (eval_in_scope new_scope [fbody]) ++ eval_in_scope scope rest
-    where (SFdecl _ params fbody) = fetch scope name
+eval_in_scope    scope (SFcall name args) =  eval_in_scope new_scope fbody
+    where (SFuncVal _ params fbody) = fetch scope name
           new_scope = fcallScope scope params (map (fetch scope) args)
-eval_in_scope    scope (val:rest) = val : eval_in_scope scope rest
+eval_in_scope    scope val = val
+
+eval_fdecl :: Scope -> SStmt -> Scope
+eval_fdecl scope (SFdecl name params body) = new_scope
+    where new_scope = insert scope name val
+            where val = (SFuncVal name params body)
+
+eval_program :: Scope -> [SStmt] -> [SExpr]
+eval_program _ [] = []
+eval_program scope ((SStmtExpr sexpr):xs) = (eval_in_scope scope sexpr) : eval_program scope xs
+eval_program scope (fdecl:xs) = eval_program new_scope xs
+    where new_scope = eval_fdecl scope fdecl
 
 eval :: Program -> [SExpr]
-eval    (Program prog) = eval_in_scope EmptyScope prog
+eval    (Program stmts)   = eval_program EmptyScope stmts
 
 eval_test :: IO ()
 eval_test = myTest "eval" eval testcases
