@@ -400,15 +400,21 @@ fcallScope :: Scope -> [String] -> [SExpr] -> Scope
 fcallScope scope [] [] = scope
 fcallScope scope (s:strings) (v:vals) = fcallScope (insert scope s v) strings vals
 
+unpackString :: SExpr -> String
+unpackString (SString s) = s
+
+unpackNumber :: SExpr -> Int
+unpackNumber (SNumber i) = i
+
 primop :: Scope -> String -> [String] -> SExpr
 primop scope "cons" (left:right:[]) = SCons lleft rright
     where lleft = fetch scope left
           rright = fetch scope right
 primop scope "clone" (arg:[]) = SCons val val
     where val = fetch scope arg
-primop scope "+" (left:right:[]) = SNumber (lleft + rright)
-    where (SNumber lleft) = fetch scope left
-          (SNumber rright) = fetch scope right
+primop scope "+" args = SNumber answer
+    where answer = foldl (+) 0 parts
+          parts = map (\x -> unpackNumber (fetch scope x)) args
 primop scope "==" (left:right:[]) = if (lleft == rright) then (SBoolean True) else (SBoolean False)
     where lleft = fetch scope left
           rright = fetch scope right
@@ -418,12 +424,10 @@ primop scope "<" (left:right:[]) = if (lleft < rright) then (SBoolean True) else
 primop scope ">" (left:right:[]) = if (lleft > rright) then (SBoolean True) else (SBoolean False)
     where (SNumber lleft) = fetch scope left
           (SNumber rright) = fetch scope right
-primop scope "concat" (left:right:[]) = SString (lleft ++ rright)
-    where (SString lleft) = fetch scope left
-          (SString rright) = fetch scope right
+primop scope "concat" args = SString answer
+    where answer = foldl (++) "" parts
+          parts = map (\x -> unpackString (fetch scope x)) args
 primop _ name _ = error $ "Unknown primop: " ++ show name
-
--- TODO FIXME make primops n-ary
 
 eval_in_scope :: Scope -> SExpr -> SExpr
 eval_in_scope    scope (SSymbol name) =  fetch scope name
@@ -487,6 +491,8 @@ eval_test = myTest "eval" eval testcases
                         ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop cb ca)))))")),                   [SNumber 4]),
                         ((parse (lexer "(let (a 4) (let (b #t) (let (c (cons a b)) (split (ca cb c) (drop ca cb)))))")),                   [SBoolean True]),
                         ((parse (lexer "(let (a 4) (let (b (clone a)) (split (bl br b) (drop bl br))))")),                                 [SNumber 4]),
+                        ((parse (lexer "(let (a 1) (let (b 2) (let (c 3) (+ a b c))))")),                                                  [SNumber 6]),
+                        ((parse (lexer "(let (a \"a\") (let (b \"b\") (let (c \"c\") (concat a b c))))")),                                 [SString "abc"]),
                         ((parse (lexer "")), [])
                       ]
 
