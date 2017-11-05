@@ -3,7 +3,10 @@
 A minimal linear lisp experiment
 
 A-linear-lisp (ALL) is an expression lisp in administrative normal form,
-all variables are linear and must be used exactly once.
+all variables are linear and must be used exactly once in every branch of execution.
+
+Functions are non-linear and can only be declared at the top-level.
+There is no support for closures or higher-order functions.
 
 ## Forms:
 
